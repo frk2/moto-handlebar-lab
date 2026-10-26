@@ -22,12 +22,14 @@
   <div class="seg" role="group" aria-label="Posture"><button data-posture="standing">Standing</button><button data-posture="seated">Seated</button></div>
   <label class="check"><input type="checkbox" id="show-rider" checked> Rider on the new bar</label>
   <label class="check"><input type="checkbox" id="show-ghost"> Rider on your bars</label>
+  <label class="check"><input type="checkbox" id="show-dims" checked> Hand-centre dimensions</label>
+  <div class="key" aria-hidden="true"><span><i style="background:#7d4fc4"></i>fore/aft</span><span><i style="background:#2f7d5a"></i>height</span><span><i style="background:#1f7f99"></i>width</span></div>
   <label class="slider">Photo <output id="photo-out"></output><input type="range" id="photo" min="0" max="1" step="0.05" value="0.9"></label>
   <p class="fine" id="bike-notes"></p></section>
 </aside>
 <main>
  <div class="viewport"><canvas id="scene" aria-label="3D view of the handlebars on the motorcycle"></canvas>
-  <div class="views" role="group" aria-label="Camera"><button data-view="three">3/4</button><button data-view="side">Side</button><button data-view="front">Front</button><button data-view="top">Top</button><button data-view="rider">Rider</button></div>
+  <div class="views" role="group" aria-label="Camera"><button data-view="three">3/4</button><button data-view="hands">Hands</button><button data-view="side">Side</button><button data-view="front">Front</button><button data-view="top">Top</button><button data-view="rider">Rider</button></div>
   <div class="legend"><span><i class="swatch cur"></i><b id="legend-current"></b></span><span><i class="swatch cand"></i><b id="legend-candidate"></b></span></div>
   <p class="hint">Drag to orbit · scroll to zoom · right-drag to pan</p></div>
  <section class="card"><h2>What changes</h2><div id="compare"></div><p class="fine" id="verdict"></p></section>

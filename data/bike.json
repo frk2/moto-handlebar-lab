@@ -6,7 +6,7 @@
  "riser":32,"mountOffset":12,"clampHalf":52,
  "peg":[550.2,445.7],"pegHalf":195,"seatPoint":[632.8,1007.7],
  "photo":{"src":"/bike.webp","width":2160,"height":1296,"pxPerMm":0.847,"rearAxle":[464,924],"groundY":1215.5,
-  "source":"https://www.betamotor.com/en/bikes/rr-race-4t-390/","credit":"Beta Motor studio photograph (MY2027 RR Race 4T), used privately"},
+  "source":"https://www.betamotor.com/en/bikes/rr-race-4t-390/","credit":"Beta Motor studio photograph (MY2027 RR Race 4T), © Beta Motor"},
  "published":{
   "seatHeight":{"value":950,"source":"https://www.betamotor.com/en/bikes/rr-race-4t-390-my26/"},
   "seatHeightXPro":{"value":930,"source":"https://www.betamotor.com/en/bikes/rr-xpro-4t-390-my26/"},

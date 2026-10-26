@@ -5,14 +5,17 @@ const $=s=>document.querySelector(s);
 function el(tag,attrs={},...kids){const n=document.createElement(tag);for(const [k,v] of Object.entries(attrs)){if(v==null||v===false)continue;if(k==='class')n.className=v;else if(k.startsWith('on'))n.addEventListener(k.slice(2),v);else if(k in n&&k!=='list')n[k]=v;else n.setAttribute(k,v===true?'':v);}for(const k of kids.flat())if(k!=null)n.append(k.nodeType?k:String(k));return n;}
 const pref={get(k,d){try{const v=localStorage.getItem('hl.'+k);return v==null?d:JSON.parse(v);}catch{return d;}},set(k,v){try{localStorage.setItem('hl.'+k,JSON.stringify(v));}catch{}}};
 function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('show'),2600);}
+// Each browser saves under its own random ID; nobody else can read or change it.
+const visitor=(()=>{let v=pref.get('visitor','');if(!/^[0-9a-f]{32}$/.test(v)){v=[...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,'0')).join('');pref.set('visitor',v);}return v;})();
 async function api(path,method='GET',body){
- const r=await fetch(path,{method,headers:method==='GET'?{}:{'Content-Type':'application/json','X-Handlebar-Lab-Client':'app'},body:method==='GET'?undefined:JSON.stringify(body??{})});
+ const headers={'X-Handlebar-Lab-Visitor':visitor,...(method==='GET'?{}:{'Content-Type':'application/json','X-Handlebar-Lab-Client':'app'})};
+ const r=await fetch(path,{method,headers,body:method==='GET'?undefined:JSON.stringify(body??{})});
  const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Request failed.');return data;
 }
 
 const [catalog,saved]=await Promise.all([api('/api/catalog'),api('/api/state')]);
 const bike=catalog.bike,byId=new Map(catalog.bars.map(b=>[b.id,b]));
-const ui={unit:pref.get('unit','mm'),photo:pref.get('photo',0.9),showRider:pref.get('rider',true),showGhost:pref.get('ghost',false),sort:pref.get('sort',['fit',1]),brand:'',dia:'',use:'offroad',q:'',short:false};
+const ui={unit:pref.get('unit','mm'),photo:pref.get('photo',0.9),showRider:pref.get('rider',true),showGhost:pref.get('ghost',false),dims:pref.get('dims',true),sort:pref.get('sort',['fit',1]),brand:'',dia:'',use:'offroad',q:'',short:false};
 const fallbackCandidate=catalog.bars.find(b=>b.brand==='Renthal'&&b.line==='Fatbar'&&/KTM/i.test(b.bend))?.id||catalog.bars[0].id;
 let setup=saved.setup||{current:null,currentRoll:0,candidate:fallbackCandidate,candidateRoll:0,riser:0,mountShift:0,riderHeight:1780,posture:'standing',custom:null};
 let shortlist=new Set(saved.shortlist.map(s=>s.bar_id));
@@ -41,7 +44,7 @@ function picker(host,key,{allowCustom}){
   const bends=catalog.bars.filter(x=>x.brand===brandSel.value&&x.line===lineSel.value);
   fill(bendSel,bends.map(x=>el('option',{value:x.id},`${x.bend}${x.part?` (${x.part})`:''}`)),'Bend…');bendSel.value=b?.id||'';
   const bar=barOf(id);
-  spec.textContent=bar?`${len(bar.width)} wide · ${len(bar.rise)} rise · ${len(bar.pullback)} pullback${bar.fits?` · ${bar.fits}`:''}${bar.similar_to_stock?` · Similar to ${bar.similar_to_stock}`:''}`:'';
+  spec.textContent=bar?`${len(bar.width)} wide · ${len(bar.rise)} rise · ${len(bar.pullback)} pullback · ${bar.control?len(bar.control):'—'} control area${bar.fits?` · ${bar.fits}`:''}${bar.similar_to_stock?` · Similar to ${bar.similar_to_stock}`:''}`:'';
  }
  brandSel.onchange=()=>{
   if(brandSel.value==='custom'){setup.custom||={width:800,rise:90,pullback:60,center:null,dia:'1-1/8 tapered',label:'My bar'};setup[key]='custom';changed();return;}
@@ -62,6 +65,7 @@ function compute(){
  const cb=barOf(setup.current),nb=barOf(setup.candidate);
  return {current:cb&&{bar:cb,...ergonomics(bike,cb,mountOf(setup.currentRoll),rider())},candidate:nb&&{bar:nb,...ergonomics(bike,nb,mountOf(setup.candidateRoll),rider())}};
 }
+const sceneState=r=>({...r,showRider:ui.showRider,showGhostRider:ui.showGhost,showDims:ui.dims,fmtLen:len,photoOpacity:ui.photo});
 const three=createScene($('#scene'),bike,()=>render());
 let first=true;
 function describe(key,d){
@@ -80,20 +84,21 @@ function render(){
  $('#photo').value=ui.photo;$('#photo-out').textContent=`${Math.round(ui.photo*100)}%`;
  for(const b of document.querySelectorAll('[data-posture]'))b.setAttribute('aria-pressed',b.dataset.posture===setup.posture);
  for(const b of document.querySelectorAll('[data-unit]'))b.setAttribute('aria-pressed',b.dataset.unit===ui.unit);
- $('#show-rider').checked=ui.showRider;$('#show-ghost').checked=ui.showGhost;
+ $('#show-rider').checked=ui.showRider;$('#show-dims').checked=ui.dims;$('#show-ghost').checked=ui.showGhost;
  $('#star').setAttribute('aria-pressed',shortlist.has(setup.candidate));$('#star').textContent=shortlist.has(setup.candidate)?'★ Shortlisted':'☆ Shortlist';
  const r=compute();
  $('#legend-current').textContent=name(r.current?.bar);$('#legend-candidate').textContent=name(r.candidate?.bar);
- if(r.current||r.candidate){three.update({...r,showRider:ui.showRider,showGhostRider:ui.showGhost,photoOpacity:ui.photo});if(first){three.view('three',true);first=false;}}
+ if(r.current||r.candidate){three.update(sceneState(r));if(first){three.view('three',true);first=false;}}
  renderCompare(r);renderTable(r);
 }
 const signedDeg=d=>{const r=d.toFixed(1);return +r===0?'0.0°':`${d>0?'+':''}${r}°`;};
 const rollText=v=>v===0?'0° (rise ∥ forks)':`${v>0?'+':''}${v}° ${v>0?'forward':'back'}`;
 function renderCompare({current:c,candidate:n}){
  if(!c||!n){$('#compare').replaceChildren(el('p',{class:'fine'},'Choose both bars to compare.'));$('#verdict').textContent='';return;}
- const rows=[['Width (tip to tip)',len(c.bar.width),len(n.bar.width),n.bar.width-c.bar.width,'endWidth'],['Rise (published)',len(c.bar.rise),len(n.bar.rise),n.bar.rise-c.bar.rise,'gripHeightPeg'],['Pullback (published)',len(c.bar.pullback),len(n.bar.pullback),n.bar.pullback-c.bar.pullback,'gripReachSeat']];
+ const rows=[['Width (tip to tip)',len(c.bar.width),len(n.bar.width),n.bar.width-c.bar.width,'endWidth'],['Rise (published)',len(c.bar.rise),len(n.bar.rise),n.bar.rise-c.bar.rise,'gripHeightPeg'],['Pullback (published)',len(c.bar.pullback),len(n.bar.pullback),n.bar.pullback-c.bar.pullback,'gripReachSeat'],
+  ['Control area (published)',c.bar.control?len(c.bar.control):'not published',n.bar.control?len(n.bar.control):'not published',c.bar.control&&n.bar.control?n.bar.control-c.bar.control:null]];
  const body=[];
- for(const [label,a,b,d] of rows)body.push(el('tr',{},el('td',{},label),el('td',{},a),el('td',{},b),el('td',{class:'delta flat'},signedLen(d))));
+ for(const [label,a,b,d] of rows)body.push(el('tr',{},el('td',{},label),el('td',{},a),el('td',{},b),el('td',{class:'delta flat'},d==null?'—':signedLen(d))));
  body.push(el('tr',{},el('td',{colspan:4,class:'fine'},el('b',{},'At the hand (centre of grip), as mounted'))));
  for(const [key,label,unit] of METRICS){
   if(setup.posture==='standing'&&key.endsWith('Seat'))continue;
@@ -114,7 +119,7 @@ function renderCompare({current:c,candidate:n}){
 }
 
 // ---------- full catalog table ----------
-const COLS=[['brand','Brand'],['line','Line'],['bend','Bend'],['dia','Ø'],['width','Width'],['rise','Rise'],['pullback','Pullback'],['dHeight','Δ Hand height'],['dReach','Δ Hand fore/aft'],['dWidth','Δ Hand spacing'],['fit','Closest']];
+const COLS=[['brand','Brand'],['line','Line'],['bend','Bend'],['dia','Ø'],['width','Width'],['rise','Rise'],['pullback','Pullback'],['control','Control area'],['dHeight','Δ Hand height'],['dReach','Δ Hand fore/aft'],['dWidth','Δ Hand spacing'],['fit','Closest']];
 let tableRows=[],tableKey='';
 function renderTable({current:c}){
  const key=[setup.current,setup.currentRoll,setup.riser,setup.mountShift,JSON.stringify(setup.custom)].join('|');
@@ -137,12 +142,12 @@ function renderTable({current:c}){
  const fmt=v=>v==null?'—':signedLen(v);
  $('#bars tbody').replaceChildren(...list.slice(0,600).map(r=>{const b=r.b;return el('tr',{class:b.id===setup.candidate?'sel':b.id===setup.current?'mine':null,title:b.notes||b.fits||'',onclick:()=>{setup.candidate=b.id;changed();$('.viewport').scrollIntoView({behavior:'smooth',block:'nearest'});}},
   el('td',{class:'star'},shortlist.has(b.id)?'★':''),el('td',{},b.brand),el('td',{},b.line),el('td',{},b.bend,b.part?el('small',{},` ${b.part}`):null,b.fits?el('div',{},el('small',{},b.fits)):null,b.similar_to_stock?el('div',{},el('small',{},'≈ '+b.similar_to_stock)):null),el('td',{},b.dia),
-  el('td',{},len(b.width)),el('td',{},len(b.rise)),el('td',{},len(b.pullback)),el('td',{},fmt(r.dHeight)),el('td',{},fmt(r.dReach)),el('td',{},fmt(r.dWidth)),el('td',{},r.fit==null?'—':len(r.fit)));}));
+  el('td',{},len(b.width)),el('td',{},len(b.rise)),el('td',{},len(b.pullback)),el('td',{},b.control?len(b.control):'—'),el('td',{},fmt(r.dHeight)),el('td',{},fmt(r.dReach)),el('td',{},fmt(r.dWidth)),el('td',{},r.fit==null?'—':len(r.fit)));}));
 }
 
 // ---------- persistence ----------
 let saveTimer;
-function changed(rerender=true){if(rerender)render();else{for(const p of pickers)p.sync();const r=compute();three.update({...r,showRider:ui.showRider,showGhostRider:ui.showGhost,photoOpacity:ui.photo});renderCompare(r);tableKey='';renderTable(r);}
+function changed(rerender=true){if(rerender)render();else{for(const p of pickers)p.sync();const r=compute();three.update(sceneState(r));renderCompare(r);tableKey='';renderTable(r);}
  clearTimeout(saveTimer);saveTimer=setTimeout(save,500);}
 async function save(){if(!setup.current)return;try{const s=await api('/api/setup','PUT',setup);shortlist=new Set(s.shortlist.map(x=>x.bar_id));}catch(e){toast(e.message);}}
 
@@ -154,6 +159,7 @@ for(const b of document.querySelectorAll('[data-view]'))b.onclick=()=>three.view
 $('#photo').oninput=e=>{ui.photo=Number(e.target.value);pref.set('photo',ui.photo);render();};
 $('#show-rider').onchange=e=>{ui.showRider=e.target.checked;pref.set('rider',ui.showRider);render();};
 $('#show-ghost').onchange=e=>{ui.showGhost=e.target.checked;pref.set('ghost',ui.showGhost);render();};
+$('#show-dims').onchange=e=>{ui.dims=e.target.checked;pref.set('dims',ui.dims);render();};
 $('#match-roll').onclick=()=>{setup.candidateRoll=setup.currentRoll;changed();};
 $('#match-angle').onclick=()=>{
  const target=compute().current.metrics.gripUpsweep,nb=barOf(setup.candidate);
@@ -172,7 +178,7 @@ $('#f-short').onchange=e=>{ui.short=e.target.checked;renderTable(compute());};
 $('#bike-name').textContent=`${bike.name} · ${bike.variant}`;
 $('#bike-notes').textContent=`Bike scaled from tyre sizes and wheelbase. Beta lists ${bike.published.seatHeight.value} mm seat height and ${bike.published.pegHeight.value} mm peg height. Bar mount height and offset are estimates, so set the riser and clamp sliders to match your bike.`;
 $('#about').replaceChildren(el('h2',{},'About the numbers'),
- el('p',{},`${catalog.bars.length} bends from ${brands.join(', ')}. Width, rise and pullback come from each maker's published bend chart (sources are linked per bar in the data). Makers measure rise differently; these are normalised to the grip-end centreline above the clamp centreline. Where a maker does not publish clamp width, grip length or sweep angles, the 3D shape uses typical values (${'190 mm clamp section, 170 mm grip section, 9° back-sweep, 4° up-sweep'}), so the hand position is exact to the published numbers but the bend shape between is approximate.`),
+ el('p',{},`${catalog.bars.length} bends from ${brands.join(', ')}. Width, rise and pullback come from each maker's published bend chart (sources are linked per bar in the data). Makers measure rise differently; these are normalised to the grip-end centreline above the clamp centreline. Where a maker does not publish clamp width, control area or sweep angles, the 3D shape uses typical values (${'190 mm clamp section, 170 mm grip section, 9° back-sweep, 4° up-sweep'}), so the hand position is exact to the published numbers but the bend shape between is approximate.`),
  el('p',{},'Roll 0° stands each bar\'s rise section parallel to the fork legs, which is how most riders set a new bar. Positive roll moves the grips forward.'),
  ...bike.calibration.map(t=>el('p',{},t)),
  el('p',{},'Photo: ',el('a',{href:bike.photo.source,target:'_blank',rel:'noopener'},bike.photo.credit),'.'),

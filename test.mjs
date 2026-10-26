@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {DatabaseSync} from 'node:sqlite';
 import {spawn} from 'node:child_process';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
@@ -68,9 +69,12 @@ async function start(db){
  return {proc,url:`http://127.0.0.1:${port}`};
 }
 async function stop(proc){proc.kill('SIGTERM');await once(proc,'exit');}
-const write=(url,method,body,headers={'Content-Type':'application/json','X-Handlebar-Lab-Client':'app'})=>fetch(url,{method,headers,body:JSON.stringify(body)});
+const A='a'.repeat(32),B='0123456789abcdef0123456789abcdef';
+const hdr=(visitor=A,extra={'Content-Type':'application/json','X-Handlebar-Lab-Client':'app'})=>({...(visitor?{'X-Handlebar-Lab-Visitor':visitor}:{}),...extra});
+const write=(url,method,body,headers=hdr())=>fetch(url,{method,headers,body:JSON.stringify(body)});
+const read=(url,visitor=A)=>fetch(url,{headers:hdr(visitor,{})});
 
-test('service serves the app and keeps the setup and shortlist across restarts',async()=>{
+test('service serves the app and keeps each browser\'s setup and shortlist separate across restarts',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'handlebar-lab-')),db=join(dir,'test.sqlite');
  let s=await start(db);
  try{
@@ -79,26 +83,38 @@ test('service serves the app and keeps the setup and shortlist across restarts',
   for(const p of ['/app.js','/geometry.mjs','/scene.js','/style.css','/bike.webp','/vendor/three.module.min.js','/vendor/OrbitControls.js'])assert.equal((await fetch(s.url+p)).status,200,p);
   for(const p of ['/server.mjs','/data/bars.json','/../thing.yaml','/test.mjs'])assert.equal((await fetch(s.url+p)).status,404,p);
   const cat=await (await fetch(s.url+'/api/catalog')).json();assert.equal(cat.bars.length,catalog.bars.length);assert.equal(cat.bike.name,'Beta RR 390');
-  assert.equal((await (await fetch(s.url+'/api/state')).json()).setup,null);
+  assert.equal((await fetch(s.url+'/api/state')).status,400);
+  assert.equal((await read(s.url+'/api/state','short')).status,400);
+  assert.equal((await (await read(s.url+'/api/state')).json()).setup,null);
   const [a,b]=catalog.bars;
-  assert.equal((await write(s.url+'/api/setup','PUT',{current:a.id},{'Content-Type':'application/json'})).status,403);
+  assert.equal((await write(s.url+'/api/setup','PUT',{current:a.id},hdr(A,{'Content-Type':'application/json'}))).status,403);
+  assert.equal((await write(s.url+'/api/setup','PUT',{current:a.id},hdr(null))).status,400);
   assert.equal((await write(s.url+'/api/setup','PUT',{current:'nope'})).status,400);
   assert.equal((await write(s.url+'/api/setup','PUT',{current:a.id,currentRoll:45})).status,400);
   assert.equal((await write(s.url+'/api/setup','PUT',{current:'custom'})).status,400);
   assert.equal((await write(s.url+'/api/setup','PUT',{current:'custom',custom:{width:5000,rise:90,pullback:50}})).status,400);
+  assert.equal((await write(s.url+'/api/shortlist/'+b.id,'PUT',{})).status,400,'shortlist needs a setup first');
   let r=await write(s.url+'/api/setup','PUT',{current:'custom',custom:{width:805,rise:95,pullback:58,dia:'7/8',label:'<b>Old bar</b>'},candidate:b.id,candidateRoll:4.5,currentRoll:-2,riser:10,mountShift:-5,riderHeight:1850,posture:'seated'});
   assert.equal(r.status,200);
   assert.equal((await write(s.url+'/api/shortlist/'+b.id,'PUT',{note:'try this'})).status,200);
   assert.equal((await write(s.url+'/api/shortlist/custom','PUT',{})).status,400);
   assert.equal((await write(s.url+'/api/shortlist/unknown-bar','PUT',{})).status,400);
   const big='x'.repeat(20000);assert.equal((await write(s.url+'/api/setup','PUT',{current:a.id,pad:big})).status,413);
-  await stop(s.proc);s=await start(db);
-  const st=await (await fetch(s.url+'/api/state')).json();
+  // A second browser sees nothing of the first and cannot remove its shortlist.
+  assert.equal((await (await read(s.url+'/api/state',B)).json()).setup,null);
+  assert.equal((await write(s.url+'/api/setup','PUT',{current:a.id},hdr(B))).status,200);
+  assert.equal((await write(s.url+'/api/shortlist/'+b.id,'DELETE',{},hdr(B))).status,200);
+  await stop(s.proc);
+  const raw=new DatabaseSync(db),keys=raw.prepare('SELECT visitor FROM visitor_setup').all().map(x=>x.visitor);raw.close();
+  assert.equal(keys.length,2);assert.ok(keys.every(k=>/^[0-9a-f]{64}$/.test(k)&&k!==A&&k!==B),'browser IDs are stored only as hashes');
+  s=await start(db);
+  const st=await (await read(s.url+'/api/state')).json();
   assert.deepEqual({...st.setup,custom:undefined},{current:'custom',currentRoll:-2,candidate:b.id,candidateRoll:4.5,riser:10,mountShift:-5,riderHeight:1850,posture:'seated',custom:undefined});
   assert.equal(st.setup.custom.label,'<b>Old bar</b>');assert.equal(st.setup.custom.dia,'7/8');
   assert.deepEqual(st.shortlist.map(x=>[x.bar_id,x.note]),[[b.id,'try this']]);
+  assert.equal((await (await read(s.url+'/api/state',B)).json()).setup.current,a.id);
   assert.equal((await write(s.url+'/api/shortlist/'+b.id,'DELETE',{})).status,200);
-  assert.equal((await (await fetch(s.url+'/api/state')).json()).shortlist.length,0);
+  assert.equal((await (await read(s.url+'/api/state')).json()).shortlist.length,0);
   assert.equal((await fetch(s.url+'/api/nothing')).status,404);
  }finally{await stop(s.proc);await rm(dir,{recursive:true,force:true});}
 });

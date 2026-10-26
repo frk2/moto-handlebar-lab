@@ -15,7 +15,8 @@ Normalised fields (mm unless noted):
   knee_rise height to the outer bend where the grip section starts (Renthal C, ODI C,
             Pro Taper "RISE", Zeta/Scar/Tag/Accel/Fly/Moose "Rise", Beta drawing), or null
   center    straight clamp section length (Renthal D, ODI D), or null
-  control   straight grip/control section length (Renthal F, ODI F, Pro Taper CONTROL AREA), or null
+  control   control area: straight grip/control section length (Renthal F, ODI F, Pro Taper
+            CONTROL AREA, FASST "control room"), or null where the maker does not publish it
 """
 import json, re, sys
 from pathlib import Path
@@ -82,6 +83,8 @@ def normalise(row):
             m = re.search(r'rise at first bend (\d+(?:\.\d+)?)', row.get('notes') or '')
             knee = num(m.group(1)) if m else None
         center, control = num(row.get('center_width_mm')), num(row.get('control_mm'))
+        m = re.search(r'(\d+(?:\.\d+)?) in control room', row.get('notes') or '')
+        if control is None and m: control = num(float(m.group(1)) * 25.4)  # FASST mini: "8 in control room each side"
         pullback = num(row.get('pullback_mm') if row.get('pullback_mm') is not None else row.get('sweep_mm'))
     return {
         'brand': brand, 'line': row['line'], 'bend': row['bend'], 'part': row.get('part'),

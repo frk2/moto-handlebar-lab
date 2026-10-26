@@ -1,14 +1,15 @@
 # Handlebar Lab
 
-A private EmptyOS service for comparing motorcycle handlebar bends in 3D on a Beta RR 390. You enter the bar you have now, by catalog bend or by its published width, rise, pullback and clamp width. You can then try any other bend, roll either bar in the clamps, and see how the hands, grip angles and a simple standing or seated rider change.
+A public EmptyOS service for comparing motorcycle handlebar bends in 3D on a Beta RR 390. You enter the bar you have now, by catalog bend or by its published width, rise, pullback and clamp width. You can then try any other bend, roll either bar in the clamps, and see how the hands, grip angles and a simple standing or seated rider change.
 
 ## What it shows
 
 - A calibrated side photo of the bike, placed as a billboard in a three.js scene. 3D forks, clamps, pegs and wheel outlines are added so the bike still reads when you orbit away from the side view.
-- Your bar (translucent blue) and the bar you are trying (orange), built to each maker's published dimensions. Views: 3/4, side, front, top and from the rider's eyes.
+- Your bar (translucent blue) and the bar you are trying (orange), built to each maker's published dimensions. Views: 3/4, a close-up of the right hand, side, front, top and from the rider's eyes.
+- Hand-centre dimensions: blue and orange markers show where each bar puts the centre of your hand. Colour-keyed legs between them show fore/aft (purple), height (green) and in/out (teal) moves. A callout lists each move and the total distance in mm or inches.
 - Roll for each bar. 0° stands the bar's clamp-to-bend section parallel to the fork legs, and positive roll moves the grips forward. There are also riser-height and clamp fore/aft sliders for the bike.
-- A table of changes at the hand: height and reach from the pegs and seat, hand spacing, back-sweep and up-sweep as ridden, torso lean and elbow angle. "Match my grip angle" finds the roll that gives the new bar the same up-sweep as yours.
-- Every bar, sortable by how far it moves your hands from where they are now. You can filter by use, brand, diameter or your shortlist.
+- A table of changes at the hand: height and reach from the pegs and seat, hand spacing, back-sweep and up-sweep as ridden, and torso lean. Published width, rise, pullback and control area are listed for both bars. "Match my grip angle" finds the roll that gives the new bar the same up-sweep as yours.
+- Every bar, sortable by how far it moves your hands from where they are now. Control area appears where the maker publishes it. You can filter by use, brand, diameter or your shortlist.
 
 ## Data
 
@@ -32,15 +33,21 @@ Where a maker does not publish clamp width, grip length or sweep angles, the 3D 
 
 Renthal's WorksFit tool lists its 604 bend as similar to the 2017–2024 RR 390 stock bar, and its 821 as similar to the 2025 X-Pro and 2024 RS. Both rows are tagged `similar_to_stock`. WorksFit's stock-bar records reuse the Renthal dimensions, so they are not separate rows.
 
-`data/bike.json` holds the bike model and calibration notes. The photo is scaled at 0.847 px/mm, the mean of the front tyre, rear tyre and axle spacing, which agree within 1.5%. The peg and seat positions are measured from the photo. Beta does not publish rake or offset for the current chassis, so the 2019 RR-S figures are used: 26.5° and 23 mm. The fork line in the photo measures 26.3°. Bar mount height and offset are estimates, which is why the riser and clamp sliders exist. The photo is Beta's MY2027 RR Race 4T studio image, used privately. `scripts/cutout.py` removed its white background.
+`data/bike.json` holds the bike model and calibration notes. The photo is scaled at 0.847 px/mm, the mean of the front tyre, rear tyre and axle spacing, which agree within 1.5%. The peg and seat positions are measured from the photo. Beta does not publish rake or offset for the current chassis, so the 2019 RR-S figures are used: 26.5° and 23 mm. The fork line in the photo measures 26.3°. Bar mount height and offset are estimates, which is why the riser and clamp sliders exist. The photo is Beta's MY2027 RR Race 4T studio image, © Beta Motor, shown with a credit link. The owner chose to keep it when the app went public. `scripts/cutout.py` removed its white background.
 
 The rider uses Drillis & Contini segment proportions and a simple posture rule, so read it for the direction and size of a change, not as a bike fit.
 
 ## Runtime
 
-Node >=22.13, built-in `node:sqlite`, and no dependencies or install step. three.js 0.170.0 (MIT) is vendored in `public/vendor/`, so the page loads nothing from the network. The service reads `PORT` and `EMPTYOS_DATASET_HANDLEBAR_LAB_DATA`. The Database holds one `setup` row (your bar, rolls, riser, clamp shift, rider height and posture) and a `shortlist` table. Both are created with `CREATE TABLE IF NOT EXISTS` on first start. Units, view toggles and photo opacity are per-browser conveniences kept in local storage.
+Node >=22.13, built-in `node:sqlite`, and no dependencies or install step. three.js 0.170.0 (MIT) is vendored in `public/vendor/`, so the page loads nothing from the network. The service reads `PORT` and `EMPTYOS_DATASET_HANDLEBAR_LAB_DATA`. The app is public, and public requests carry no identity, so every browser saves separately. On first visit the page draws a random 128-bit ID and keeps it in local storage. It sends the ID in an `X-Handlebar-Lab-Visitor` header. The server stores only its SHA-256 hash:
+- `visitor_setup`: one row per browser, holding the bar, rolls, riser, clamp shift, rider height and posture.
+- `visitor_shortlist`: up to 200 bars per browser.
 
-JSON writes require the `X-Handlebar-Lab-Client: app` header. Bodies are capped at 16 KB, and only listed `public/` files are served. User text is rendered as text, never as HTML.
+No response lists other browsers. Nobody can read or change another browser's setup without its ID. New setups stop at 50,000 browsers.
+
+Tables are created with `CREATE TABLE IF NOT EXISTS` on start. The v1 single-owner `setup` and `shortlist` tables are retained but no longer read. Clearing site data starts a browser fresh. Units, view toggles and photo opacity are per-browser conveniences kept in local storage.
+
+JSON writes require the `X-Handlebar-Lab-Client: app` header, and EmptyOS enforces the app's exact Origin on browser writes. Anonymous visitors can only create, replace or delete their own browser's setup and shortlist; they have no other write action. Bodies are capped at 16 KB, and only listed `public/` files are served. User text is rendered as text, never as HTML.
 
 `./verify` checks syntax and catalog integrity, and builds every bar to confirm its ends land on the published dimensions. It also checks the direction of roll, riser and rise effects and the photo calibration. Finally it runs the service against a temporary SQLite file on an ephemeral loopback port, covering assets, write protection, validation, and persistence across a restart.
 

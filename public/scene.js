@@ -80,7 +80,35 @@ export function createScene(canvas,bike,onReady){
   clamp:new THREE.MeshStandardMaterial({color:0x2c2c2c,metalness:0.6,roughness:0.35}),
   rider:new THREE.MeshStandardMaterial({color:0x2f6d5a,roughness:0.6,transparent:true,opacity:0.5,depthWrite:false}),
   riderGhost:new THREE.MeshStandardMaterial({color:0x5b7fa6,roughness:0.6,transparent:true,opacity:0.25,depthWrite:false}),
-  hand:new THREE.MeshStandardMaterial({color:0xe0601b,emissive:0x5a1d00})};
+  hand:new THREE.MeshBasicMaterial({color:0xe0601b,depthTest:false,transparent:true}),
+  handGhost:new THREE.MeshBasicMaterial({color:0x5b7fa6,depthTest:false,transparent:true})};
+ // Dimension legs between hand centres, drawn through everything so they stay readable.
+ const AXES={reach:0x7d4fc4,height:0x2f7d5a,width:0x1f7f99};
+ const dimMats=Object.fromEntries(Object.entries(AXES).map(([k,c])=>[k,new THREE.MeshBasicMaterial({color:c,depthTest:false,transparent:true})]));
+ const directMat=new THREE.LineDashedMaterial({color:0x1f2326,dashSize:0.008,gapSize:0.006,depthTest:false,transparent:true,opacity:0.8});
+ const overlay=document.createElement('div');overlay.className='dims';canvas.parentElement.append(overlay);
+ function callout(rows,title){
+  const el=document.createElement('div');el.className='callout';
+  el.append(Object.assign(document.createElement('b'),{textContent:title}));
+  for(const [cls,text] of rows){const r=document.createElement('span');r.className='row '+cls;r.textContent=text;el.append(r);}
+  overlay.append(el);
+ }
+ function addDims(c,n,fmt){
+  // Right hand, facing the default camera. Legs run fore/aft, then up/down, then in/out.
+  const C=[c[0],c[1],Math.abs(c[2])],N=[n[0],n[1],Math.abs(n[2])],P1=[N[0],C[1],C[2]],P2=[N[0],N[1],C[2]];
+  const legs=[['reach',C,P1,N[0]-C[0],d=>d>0?'forward':'back','fore/aft'],['height',P1,P2,N[1]-C[1],d=>d>0?'higher':'lower','height'],['width',P2,N,N[2]-C[2],d=>d>0?'further out':'further in','in/out']];
+  const rows=[];
+  for(const [k,a,b,d,word,name] of legs){
+   if(Math.abs(d)<0.5){rows.push([k+' none',`same ${name}`]);continue;}
+   const m=rod(a,b,1.3,dimMats[k]);m.renderOrder=12;dynamic.add(m);
+   for(const e of [a,b]){const t=ball(e,2.2,dimMats[k]);t.renderOrder=12;dynamic.add(t);}
+   rows.push([k,`${fmt(Math.abs(d))} ${word(d)}`]);
+  }
+  const total=Math.hypot(N[0]-C[0],N[1]-C[1],N[2]-C[2]);
+  if(total>=0.5){const g=new THREE.BufferGeometry().setFromPoints([v3(C),v3(N)]),l=new THREE.Line(g,directMat);l.computeLineDistances();l.renderOrder=12;dynamic.add(l);}
+  rows.push(['total',total>=0.5?`${fmt(total)} in total`:'same hand position']);
+  callout(rows,'Right hand centre moves');
+ }
 
  function addBar(bar,placed,material,gripMat){
   const pts=placed.points.map(v3),radii=placed.local.map(p=>barRadius(bar,p[0])*MM);
@@ -107,25 +135,29 @@ export function createScene(canvas,bike,onReady){
   for(const s of pose.sides)for(const j of [s.elbow,s.knee,s.shoulder])dynamic.add(ball(j,r*1.2,material));
  }
 
- let frame={target:new THREE.Vector3(),eye:null},anim=null,last=null,activeView='three';
+ let frame={target:new THREE.Vector3(),eye:null,hand:new THREE.Vector3()},anim=null,last=null,activeView='three';
  function update(state){
-  last=state;const {current,candidate,photoOpacity}=state,eyes=activeView==='rider',showRider=state.showRider&&!eyes,showGhostRider=state.showGhostRider&&!eyes;
-  dispose(dynamic);
+  last=state;const {current,candidate,photoOpacity}=state,hideRiders=activeView==='rider'||activeView==='hands',showRider=state.showRider&&!hideRiders,showGhostRider=state.showGhostRider&&!hideRiders;
+  dispose(dynamic);overlay.replaceChildren();
   if(current){addBar(current.bar,current.placed,mats.current,mats.gripGhost);if(showGhostRider)addRider(current.pose,mats.riderGhost,22);}
   if(candidate){addBar(candidate.bar,candidate.placed,mats.candidate,mats.grip);if(showRider)addRider(candidate.pose,mats.rider,24);
-   for(const s of [-1,1]){const h=candidate.placed.hand.slice();h[2]=s*Math.abs(h[2]);dynamic.add(ball(h,10,mats.hand));}}
+  }
+  // Hand-centre markers, visible through the grips.
+  for(const [side,mat] of [[current,mats.handGhost],[candidate,mats.hand]])if(side)for(const s of [-1,1]){const h=side.placed.hand.slice();h[2]=s*Math.abs(h[2]);const m=ball(h,4.5,mat);m.renderOrder=11;dynamic.add(m);}
+  if(state.showDims&&current&&candidate)addDims(current.placed.hand,candidate.placed.hand,state.fmtLen);
   addClamps((candidate||current).placed);
   photo.children.forEach(p=>{p.material.opacity=photoOpacity;p.visible=photoOpacity>0.01;});
-  const main=candidate||current;frame.target=v3(main.placed.mount.clamp);frame.eye=v3(main.pose.head);
+  const main=candidate||current,hand=main.placed.hand;frame.target=v3(main.placed.mount.clamp);frame.eye=v3(main.pose.head);frame.hand=v3([hand[0],hand[1],Math.abs(hand[2])]);
  }
  const views={
-  side:[[0,0.1,4.2],'bike'],three:[[2.3,1.15,2.5],'mid'],front:[[1.7,0.3,0],'bar'],top:[[-0.05,1.6,0.001],'bar'],rider:[[-0.75,0.5,0],'bar']};
+  side:[[0,0.1,4.2],'bike'],three:[[2.3,1.15,2.5],'mid'],hands:[[0.26,0.12,0.16],'hand'],front:[[1.7,0.3,0],'bar'],top:[[-0.05,1.6,0.001],'bar'],rider:[[-0.75,0.5,0],'bar']};
  function view(name,instant=false){
-  const wasEyes=activeView==='rider';activeView=name;if(last&&(wasEyes||name==='rider'))update(last);
+  const close=v=>v==='rider'||v==='hands',was=activeView;activeView=name;if(last&&(close(was)||close(name)))update(last);
   const [o,on]=views[name],offset=new THREE.Vector3(...o);
-  let target=on==='bike'?v3([bike.wheelbase/2+120,820,0]):on==='mid'?v3([bike.wheelbase*0.62,1000,0]):frame.target.clone(),pos=target.clone().add(offset);
-  // From the rider's eyes, looking down at the grips.
-  if(name==='rider'&&frame.eye){pos=frame.eye.clone().add(new THREE.Vector3(0.06,0.02,0));target=frame.target.clone().add(new THREE.Vector3(0.05,-0.05,0));}
+  let target=on==='bike'?v3([bike.wheelbase/2+120,820,0]):on==='mid'?v3([bike.wheelbase*0.62,1000,0]):on==='hand'?frame.hand.clone():frame.target.clone(),pos=target.clone().add(offset);
+  // From just behind the rider's eyes, with an eye-like field of view, looking down at the grips.
+  if(name==='rider'&&frame.eye){pos=frame.eye.clone().add(new THREE.Vector3(-0.05,0.03,0));target=frame.target.clone().add(new THREE.Vector3(0.05,-0.05,0));}
+  camera.fov=name==='rider'?55:35;camera.updateProjectionMatrix();
   if(instant){camera.position.copy(pos);controls.target.copy(target);controls.update();return;}
   anim={from:camera.position.clone(),to:pos,tFrom:controls.target.clone(),tTo:target,t:0};
  }
