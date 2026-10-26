@@ -1,0 +1,11 @@
+id: handlebar-lab
+name: Handlebar Lab
+description: Compare handlebar bends in 3D on a Beta RR 390
+type: service
+command: node server.mjs
+port: 4342
+project: moto
+data:
+  - handlebar-lab-data
+route: /handlebar-lab
+visibility: private

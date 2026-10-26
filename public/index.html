@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#1f2326"><title>Handlebar Lab</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23e0601b' stroke-width='2' stroke-linecap='round'%3E%3Cpath d='M2 8l3 3h4l3-2 3 2h4l3-3'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/style.css">
+<script type="importmap">{"imports":{"three":"/vendor/three.module.min.js"}}</script>
+<script src="/_system/app/badge.js" defer></script><script type="module" src="/app.js"></script></head>
+<body>
+<header class="topbar"><div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 8l3 3h4l3-2 3 2h4l3-3"/></svg><span>HANDLEBAR LAB<small id="bike-name">Beta RR 390</small></span></div>
+<div class="units" role="group" aria-label="Units"><button data-unit="mm" aria-pressed="true">mm</button><button data-unit="in" aria-pressed="false">in</button></div>
+<emptyos-badge></emptyos-badge></header>
+<div class="layout">
+<aside class="panel" id="controls" aria-label="Setup">
+ <section class="card current"><h2><i class="swatch cur"></i>Your bars</h2><div id="current-picker"></div>
+  <label class="slider">Roll in clamps <output id="currentRoll-out"></output><input type="range" id="currentRoll" min="-20" max="20" step="0.5"></label></section>
+ <section class="card candidate"><h2><i class="swatch cand"></i>Try a bar</h2><div id="candidate-picker"></div>
+  <label class="slider">Roll in clamps <output id="candidateRoll-out"></output><input type="range" id="candidateRoll" min="-20" max="20" step="0.5"></label>
+  <div class="row"><button id="match-roll" class="ghost">Use my roll</button><button id="match-angle" class="ghost">Match my grip angle</button><button id="star" class="ghost" aria-pressed="false">☆ Shortlist</button></div></section>
+ <section class="card"><h2>Bike &amp; rider</h2>
+  <label class="slider">Riser height change <output id="riser-out"></output><input type="range" id="riser" min="-20" max="60" step="1"></label>
+  <label class="slider">Bar clamp forward/back <output id="mountShift-out"></output><input type="range" id="mountShift" min="-30" max="30" step="1"></label>
+  <label class="slider">Rider height <output id="riderHeight-out"></output><input type="range" id="riderHeight" min="1500" max="2050" step="5"></label>
+  <div class="seg" role="group" aria-label="Posture"><button data-posture="standing">Standing</button><button data-posture="seated">Seated</button></div>
+  <label class="check"><input type="checkbox" id="show-rider" checked> Rider on the new bar</label>
+  <label class="check"><input type="checkbox" id="show-ghost"> Rider on your bars</label>
+  <label class="slider">Photo <output id="photo-out"></output><input type="range" id="photo" min="0" max="1" step="0.05" value="0.9"></label>
+  <p class="fine" id="bike-notes"></p></section>
+</aside>
+<main>
+ <div class="viewport"><canvas id="scene" aria-label="3D view of the handlebars on the motorcycle"></canvas>
+  <div class="views" role="group" aria-label="Camera"><button data-view="three">3/4</button><button data-view="side">Side</button><button data-view="front">Front</button><button data-view="top">Top</button><button data-view="rider">Rider</button></div>
+  <div class="legend"><span><i class="swatch cur"></i><b id="legend-current"></b></span><span><i class="swatch cand"></i><b id="legend-candidate"></b></span></div>
+  <p class="hint">Drag to orbit · scroll to zoom · right-drag to pan</p></div>
+ <section class="card"><h2>What changes</h2><div id="compare"></div><p class="fine" id="verdict"></p></section>
+ <section class="card"><div class="browse-head"><h2>All bars <small id="bar-count"></small></h2>
+  <div class="filters"><input type="search" id="q" placeholder="Search bend, rider, bike…" aria-label="Search bars"><select id="f-use" aria-label="Use"></select><select id="f-brand" aria-label="Brand"></select><select id="f-dia" aria-label="Diameter"></select><label class="check"><input type="checkbox" id="f-short"> Shortlist</label></div></div>
+  <p class="fine">Changes are at the hand position with the bar at your current roll, compared with your bars. Click a row to try it.</p>
+  <div class="table-wrap"><table id="bars"><thead></thead><tbody></tbody></table></div></section>
+ <section class="card fine" id="about"></section>
+</main></div>
+<dialog id="first-run"><form method="dialog" id="first-form" novalidate><h2>What bars are on your bike?</h2><p>Handlebar Lab compares every other bar against yours. Pick your current bend, or enter its published dimensions.</p><p class="fine">Preselected: Beta's own 2020+ RR stock bar (037.35.000.00.59), built from Beta's factory drawing. If yours is a 2015–2019 bike, choose Beta › OEM › RR 2007-2019. Renthal also lists its 604 bend as similar to the 2017–2024 RR 390 stock bar, and its 821 as similar to the 2025 X-Pro and 2024 RS.</p><div id="first-picker"></div><div class="row end"><button value="ok" class="primary">Use these bars</button></div></form></dialog>
+<div id="toast" role="status" aria-live="polite"></div>
+<noscript><p class="noscript">Please enable JavaScript to use Handlebar Lab.</p></noscript>
+</body></html>
