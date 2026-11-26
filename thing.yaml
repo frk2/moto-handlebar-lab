@@ -8,4 +8,4 @@ project: moto
 data:
   - handlebar-lab-data
 route: /handlebar-lab
-visibility: private
+visibility: public

@@ -52,3 +52,18 @@ JSON writes require the `X-Handlebar-Lab-Client: app` header, and EmptyOS enforc
 `./verify` checks syntax and catalog integrity, and builds every bar to confirm its ends land on the published dimensions. It also checks the direction of roll, riser and rise effects and the photo calibration. Finally it runs the service against a temporary SQLite file on an ephemeral loopback port, covering assets, write protection, validation, and persistence across a restart.
 
 For UI testing, set `HANDLEBAR_LAB_TEST_DB` to a fresh temporary path and `PORT` to an unused port. Never point tests at the canonical Database.
+
+## Deploy
+
+A merge into `main` deploys this app to its EmptyOS Thing `handlebar-lab`
+(https://handlebar-lab.faraz.emptyos.app/) automatically. After Toastty merges a pull
+request, its `merge-and-deploy` skill runs
+`~/.toastty/skills/emptyos-deploy/scripts/emptyos-deploy`, which publishes
+main as one commit, keeps the Thing's live visibility, and posts the result
+as the `emptyos/deploy` status on the merged commit, so a failed deploy shows
+as a red mark on main.
+
+Do not publish with `empty put` by hand: the next deploy stops when the live
+Thing holds content that is not on main. To deploy main by hand, run
+`~/.toastty/skills/emptyos-deploy/scripts/emptyos-deploy --github frk2/moto-handlebar-lab`
+(add `--check` to see what it would do).
